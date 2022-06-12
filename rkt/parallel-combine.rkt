@@ -5,14 +5,24 @@
 
 (define (parallel-combine h f g)
   (let* ([n (ar:get-arity f)]
-         [m (ar:get-arity g)])
-    (when (not (= n m))
-      (error "Incompatible arity"))
+         [m (ar:get-arity g)]
+         [l (ar:get-arity h)])
+    
+    ;; validate combine arity
+    (when (and (number? l)
+                (not (= 2 l)))
+      (error "Combine fn arity missmatch"))
+
+    ;; validate params
+    (when (not (arity=? n m))
+      (error "Incompatible arity length"))
     
     (define (the-combination . args)
-      (when (not (= (length args) n m))
+      (when (not (arity-includes? n (length args)))
         (error "Called with wrong arity"))
-      (h (apply f args) (apply g args)))
+
+      (h (apply f args)
+         (apply g args)))
     
     (ar:restrict-arity the-combination m)))
 
@@ -39,6 +49,7 @@
                 (lambda (a) a)
                 (lambda (a b) (+ a b))))
              "incompatible arity")
+  
   (check-exn exn:fail?
              (lambda ()
                ((parallel-combine
@@ -46,4 +57,21 @@
                  (lambda (a) (+ a 1))
                  (lambda (a) (+ a 1)))
                 1 2))
-             "called with wrong arity"))
+             "called with wrong arity")
+
+  (check-exn exn:fail?
+             (lambda ()
+               (parallel-combine
+                (lambda (z) z)
+                (lambda (x) x)
+                (lambda (y) y)))
+             "arity missmatch in combine fn")
+  
+  (check-equal? ((parallel-combine
+                  (lambda (x y)
+                    (/ x y))
+                  +
+                  +)
+                 2 2)
+                1
+                "allow at least arity"))

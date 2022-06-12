@@ -6,16 +6,29 @@
 (define (compose f g)
   (let ([n (ar:get-arity f)]
         [m (ar:get-arity g)])
-    (when (not (= n m))
+    
+    (when (not (= n 1))
       (error "Incompatable arity"))
     
     (define (the-composition . args)
-      (when (not (= m (length args)))
-        (error "Call compose arity missmatch"))
-      
+      (cond
+        [(number? m)
+         (when (not (= m (length args)))
+           (error
+            (string-append
+             "Call compose arity missmatch: "
+             m "/" (length args)
+             )))]
+        [(arity-at-least? m)
+         (when (not
+                (<= (arity-at-least-value m)
+                    (length args)))
+           (raise "At least compose arity missmatch"))])
+            
       (f (apply g args)))
     
-    (ar:restrict-arity the-composition m)))
+    (ar:restrict-arity
+     the-composition m)))
 
 ;; curried function (define (iterate n) (lambda (f) ...
 (define ((iterate n) f)
@@ -46,12 +59,21 @@
                (compose
                 (lambda (c d) (+ c d))
                 (lambda (a) a)))
-             "Components have compatible arity")
+             "Components have incompatible arity")
 
   (check-exn exn:fail?
              (lambda ()
                ((compose
                  (lambda (c) (+ c 1))
-                 (lambda (a b) (+ a b 1))) 1 2 3))
-             "called with wrong nubmer of arguments"))
+                 (lambda (a b) (+ a b 1)))
+                1 2 3))
+             "called with wrong nubmer of arguments")
+  
+  (check-equal? ((compose
+                  identity
+                  +)
+                 1 1 1)
+                3
+                "any number of args"))
+
 

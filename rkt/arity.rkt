@@ -11,6 +11,9 @@
 (define (get-arity proc)
   (or (hash-ref arity-table proc #f)
       (let ([a (procedure-arity proc)])
+        a
+        
+        #;
         (if (list? a)
             (raise "Unhandled arity")
             a))))
