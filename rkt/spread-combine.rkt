@@ -4,23 +4,41 @@
  (prefix-in ar: "./arity.rkt"))
 
 (define (spread-combine h f g)
-  (let ([n (ar:get-arity f)]
-        [m (ar:get-arity g)]
-        [l (ar:get-arity h)])
-
+  (let* ([n (ar:get-arity f)]
+         [m (ar:get-arity g)]
+         [l (ar:get-arity h)]
+         [combinator-arity (cond
+                             [(or (arity-at-least? n)
+                                  (arity-at-least? m))
+                              (arity-at-least
+                               (if (number? n)
+                                   (+ n (arity-at-least-value m))
+                                   (+ m (arity-at-least-value n))))]
+                             [else
+                              (+ n m)])])
+     
+    (when (and (arity-at-least? n)
+               (arity-at-least? m))
+      (error "At least one procedure must have fixed arity"))
+    
     (when (not (= l 2))
-      (error "Arity missmatch"))
-    
+      (error "Hander arity missmatch"))
+        
     (define (the-combination . args)
-      (when (not (= (length args) (+ n m)))
-        (error "Arity missmatch"))
-      
-      (h (apply f (take args n))
-         (apply g (drop args n))))
-    
+      (let ([divide-pos (if (number? n)
+                            n
+                            (- (length args) m))])
+        
+        (when (not (arity-includes? combinator-arity (length args)))
+          (error "Arity missmatch"))
+        
+        (h (apply f (take args divide-pos))
+           (apply g (drop args divide-pos)))))
+
+    ;; fix for at least arity
     (ar:restrict-arity
      the-combination
-     (+ n m))))
+     combinator-arity)))
 
 ;; (define (spread-apply f g)
 ;;   (let ((n (ar:get-arity f))
@@ -52,7 +70,7 @@
           (apply g (drop args n))))
      t)))
 
-(module+ test
+[module+ test
   (require rackunit)
 
   (check-equal?
@@ -94,5 +112,38 @@
                                (lambda (a) a)
                                (lambda (b) b)))
                 2
-                "advertises correct arity"))
+                "advertises correct arity")
 
+  (check-exn exn:fail?
+             (lambda ()
+               (spread-combine
+                (lambda (x y) (+ x y))
+                +
+                +))
+             "both procedures can't have multiple arities")
+
+  (check-equal? ((spread-combine
+                  (lambda (x y) (+ x y))
+                  (lambda (b) b)
+                  +
+                  ) 1 1 1)
+                3
+                "use second procedure with at-least arity")
+
+  (check-equal? ((spread-combine
+                  (lambda (x y) (+ x y))
+                  +
+                  (lambda (b) b)
+                  ) 1 1 1)
+                3
+                "use first procedure with at-least arity")
+
+  (check-exn exn:fail?
+             (lambda ()
+               ((spread-combine
+                 (lambda (x y) (+ x y))
+                 (lambda (a) a)
+                 (lambda (b) b))
+                1 1 1))
+             "break combinator arity for fixed arity")
+  ]
